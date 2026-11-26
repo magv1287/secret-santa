@@ -35,9 +35,7 @@ export async function sendSecretSantaEmail({
 
   const isEs = lang === "es";
 
-  const subject = isEs
-    ? `🎁 Tu acceso al Secret Santa: ${groupName}`
-    : `🎁 Your Secret Santa access: ${groupName}`;
+  const subject = "🎄 Secret Santa - Burrito Pandilla 🎅";
 
   const pinBlock = pin
     ? isEs
