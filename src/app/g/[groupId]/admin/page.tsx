@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, useCallback, Suspense } from "react";
-import { useParams, useSearchParams } from "next/navigation";
+import { useParams, useSearchParams, useRouter } from "next/navigation";
 import {
   Shield,
   RotateCcw,
@@ -10,6 +10,8 @@ import {
   Lock,
   UserCheck,
   Mail,
+  Trash2,
+  MessageSquare,
 } from "lucide-react";
 import { detectDeviceLang, translations, type Lang } from "@/lib/i18n";
 
@@ -24,6 +26,7 @@ interface AdminParticipant {
 function AdminContent() {
   const params = useParams();
   const searchParams = useSearchParams();
+  const router = useRouter();
   const groupId = params.groupId as string;
   const token = searchParams.get("token") || "";
 
@@ -38,7 +41,8 @@ function AdminContent() {
   const [resettingId, setResettingId] = useState<string | null>(null);
   const [sendingId, setSendingId] = useState<string | null>(null);
   const [sentId, setSentId] = useState<string | null>(null);
-  const [copied, setCopied] = useState(false);
+  const [copiedKey, setCopiedKey] = useState<string | null>(null);
+  const [deleting, setDeleting] = useState(false);
 
   useEffect(() => {
     setLang(detectDeviceLang());
@@ -124,11 +128,35 @@ function AdminContent() {
     }
   }
 
-  function copyGroupLink() {
-    const url = `${window.location.origin}/g/${groupId}`;
-    navigator.clipboard.writeText(url);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
+  async function handleDeleteGroup() {
+    const msg =
+      lang === "es"
+        ? `¿Seguro que quieres ELIMINAR permanentemente el grupo "${groupName}" y todos sus participantes de la base de datos? Esta acción no se puede deshacer.`
+        : `Are you sure you want to permanently DELETE "${groupName}" and all its participants from the database? This cannot be undone.`;
+
+    if (!confirm(msg)) return;
+
+    setDeleting(true);
+    try {
+      const res = await fetch(
+        `/api/groups/${groupId}/admin?token=${encodeURIComponent(token)}`,
+        { method: "DELETE" }
+      );
+      if (res.ok) {
+        router.push("/");
+      } else {
+        const data = await res.json();
+        alert(data.error || "Error deleting group.");
+      }
+    } finally {
+      setDeleting(false);
+    }
+  }
+
+  function copyText(key: string, text: string) {
+    navigator.clipboard.writeText(text);
+    setCopiedKey(key);
+    setTimeout(() => setCopiedKey(null), 2000);
   }
 
   if (loading) {
@@ -149,6 +177,10 @@ function AdminContent() {
     );
   }
 
+  const origin = typeof window !== "undefined" ? window.location.origin : "";
+  const groupUrl = `${origin}/g/${groupId}`;
+  const whatsappMsg = t.whatsappMessage(groupName, groupUrl);
+
   return (
     <main className="mx-auto max-w-xl px-4 py-8">
       <div className="mb-6 flex items-center justify-between gap-2">
@@ -158,24 +190,43 @@ function AdminContent() {
           </span>
           <h1 className="text-2xl font-bold text-white">{groupName}</h1>
         </div>
-        <div className="flex items-center gap-2">
+        <button
+          type="button"
+          onClick={() => setLang(lang === "es" ? "en" : "es")}
+          className="rounded-lg border border-slate-800 bg-slate-900 px-2.5 py-2 text-xs font-medium text-slate-400 hover:text-white"
+        >
+          {lang === "es" ? "EN" : "ES"}
+        </button>
+      </div>
+
+      {/* Tarjeta de Enlace del Grupo + Mensaje de WhatsApp */}
+      <div className="mb-6 rounded-2xl border border-emerald-500/30 bg-slate-900/90 p-4">
+        <p className="mb-1 text-xs font-semibold uppercase tracking-wider text-emerald-400">
+          {t.groupLinkTitle}
+        </p>
+        <p className="mb-3 break-all text-sm text-slate-200">{groupUrl}</p>
+        <div className="flex flex-wrap gap-2">
           <button
-            type="button"
-            onClick={() => setLang(lang === "es" ? "en" : "es")}
-            className="rounded-lg border border-slate-800 bg-slate-900 px-2.5 py-2 text-xs font-medium text-slate-400 hover:text-white"
+            onClick={() => copyText("group", groupUrl)}
+            className="inline-flex items-center gap-1.5 rounded-xl bg-emerald-600 px-3.5 py-2 text-xs font-medium text-white hover:bg-emerald-500"
           >
-            {lang === "es" ? "EN" : "ES"}
-          </button>
-          <button
-            onClick={copyGroupLink}
-            className="inline-flex items-center gap-1.5 rounded-xl bg-slate-800 px-3.5 py-2 text-xs font-medium text-white hover:bg-slate-700"
-          >
-            {copied ? (
-              <Check className="h-3.5 w-3.5 text-emerald-400" />
+            {copiedKey === "group" ? (
+              <Check className="h-3.5 w-3.5" />
             ) : (
               <Copy className="h-3.5 w-3.5" />
             )}
-            {copied ? t.copied : t.copyGroupLinkBtn}
+            {copiedKey === "group" ? t.copied : t.copyLink}
+          </button>
+          <button
+            onClick={() => copyText("wa", whatsappMsg)}
+            className="inline-flex items-center gap-1.5 rounded-xl border border-slate-700 bg-slate-800 px-3.5 py-2 text-xs font-medium text-slate-200 hover:bg-slate-700"
+          >
+            {copiedKey === "wa" ? (
+              <Check className="h-3.5 w-3.5 text-emerald-400" />
+            ) : (
+              <MessageSquare className="h-3.5 w-3.5" />
+            )}
+            {copiedKey === "wa" ? t.copiedWhatsApp : t.copyWhatsApp}
           </button>
         </div>
       </div>
@@ -248,6 +299,25 @@ function AdminContent() {
             </div>
           </div>
         ))}
+      </div>
+
+      {/* Zona de eliminación del grupo */}
+      <div className="mt-10 border-t border-slate-800 pt-6 text-center">
+        <button
+          type="button"
+          onClick={handleDeleteGroup}
+          disabled={deleting}
+          className="inline-flex items-center gap-1.5 rounded-xl border border-rose-500/30 bg-rose-500/10 px-4 py-2 text-xs font-medium text-rose-400 hover:bg-rose-500/20 disabled:opacity-50"
+        >
+          <Trash2 className="h-3.5 w-3.5" />
+          {deleting
+            ? lang === "es"
+              ? "Eliminando grupo..."
+              : "Deleting group..."
+            : lang === "es"
+            ? "Eliminar este grupo de la base de datos"
+            : "Delete this group from database"}
+        </button>
       </div>
     </main>
   );
