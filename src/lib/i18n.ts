@@ -3,7 +3,7 @@ export type Lang = "es" | "en";
 /**
  * Detecta el idioma del dispositivo/navegador.
  * Solo soporta Español ('es') o Inglés ('en').
- * Cualquier otro idioma (ej. tigrinya, francés, árabe, etc.) cae automáticamente en Inglés ('en').
+ * Cualquier otro idioma cae automáticamente en Inglés ('en').
  */
 export function detectDeviceLang(): Lang {
   if (typeof navigator === "undefined") return "en";
@@ -56,11 +56,11 @@ export const translations = {
     copiedWhatsApp: "¡Mensaje copiado!",
     adminLinkTitle: "2. Tu enlace privado de Administrador (¡Guárdalo!)",
     adminLinkDesc:
-      "Úsalo para enviar invitaciones por correo (Brevo) o resetear PINs en 1 clic. Nunca verás las parejas del sorteo.",
+      "Úsalo para enviar invitaciones por correo o resetear PINs en 1 clic. Nunca verás las parejas del sorteo.",
     copyAdminLink: "Copiar enlace de Admin",
     openAdminPanel: "Abrir Panel Admin →",
     whatsappMessage: (groupName: string, url: string) =>
-      `🎄 ¡Ya está listo el sorteo de ${groupName}!\n\nEntra aquí, toca tu nombre y crea tu PIN de 4 dígitos para ver a quién te tocó:\n${url}`,
+      `🎄 ¡Ya está listo el sorteo de ${groupName}!\n\nEntra aquí, toca tu nombre y crea un PIN de 4 dígitos para descubrir a quién te tocó y dejar tu lista de deseos:\n${url}\n\n📌 *Nota:* Puedes poner tu correo (es opcional) para recibir tu PIN y un enlace directo por si cambias de dispositivo. Si no lo ves en tu bandeja de entrada, revisa la carpeta de *Spam / Correo no deseado*.`,
 
     // Group Page
     loadingDraw: "Cargando sorteo...",
@@ -117,7 +117,7 @@ export const translations = {
     confirmSwitchPerson:
       "¿Seguro que quieres cerrar sesión en este dispositivo? Necesitarás tu PIN (o el enlace de tu correo) para volver a entrar.",
     emailSentBanner:
-      "Te enviamos un correo con tu PIN y tu enlace directo de acceso.",
+      "Te enviamos un correo con tu PIN y tu enlace directo de acceso (revisa Spam si no lo ves).",
 
     // Admin Page
     loadingAdmin: "Cargando panel de administrador...",
@@ -178,11 +178,11 @@ export const translations = {
     copiedWhatsApp: "Message copied!",
     adminLinkTitle: "2. Your private Admin link (Save it!)",
     adminLinkDesc:
-      "Use it to send email invites (via Brevo) or reset PINs in 1 click. You will never see the draw assignments.",
+      "Use it to send email invites or reset PINs in 1 click. You will never see the draw assignments.",
     copyAdminLink: "Copy Admin link",
     openAdminPanel: "Open Admin Panel →",
     whatsappMessage: (groupName: string, url: string) =>
-      `🎄 The Secret Santa draw for ${groupName} is ready!\n\nOpen this link, tap your name, and set a 4-digit PIN to see who you got:\n${url}`,
+      `🎄 The Secret Santa draw for ${groupName} is ready!\n\nOpen this link, tap your name, and create a 4-digit PIN to see who you got and add your wishlist:\n${url}\n\n📌 *Note:* You can optionally enter your email to receive a backup of your PIN and a direct login link in case you switch devices. If you don't see it in your inbox, please check your *Spam / Junk* folder.`,
 
     // Group Page
     loadingDraw: "Loading draw...",
@@ -239,7 +239,7 @@ export const translations = {
     confirmSwitchPerson:
       "Are you sure you want to sign out on this device? You will need your PIN (or the direct link from your email) to sign back in.",
     emailSentBanner:
-      "We emailed you a backup of your PIN and your direct login link.",
+      "We emailed you a backup of your PIN and your direct login link (check Spam if you don't see it).",
 
     // Admin Page
     loadingAdmin: "Loading admin panel...",
