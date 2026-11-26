@@ -15,7 +15,27 @@ export function detectDeviceLang(): Lang {
   const primary = (langs[0] || "en").toLowerCase();
   return primary.startsWith("es") ? "es" : "en";
 }
+function buildWhatsAppMessage(_groupName: string, url: string) {
+  return `Español:
 
+🎄 ¡Ya está listo el sorteo del Amigo Secreto!
+
+Entra aquí, toca tu nombre y crea un PIN de 4 dígitos para descubrir a quién te tocó y dejar tu lista de deseos:
+${url}
+
+📌 *Nota:* Puedes poner tu correo (es opcional) para recibir tu PIN y un enlace directo por si cambias de dispositivo. Si no lo ves en tu bandeja de entrada, revisa la carpeta de *Spam / Correo no deseado*.
+
+───────────────
+
+English:
+
+🎄 The Secret Santa draw is ready!
+
+Open this link, tap your name, and create a 4-digit PIN to see who you got and add your wishlist:
+${url}
+
+📌 *Note:* You can optionally enter your email to receive a backup of your PIN and a direct login link in case you switch devices. If you don't see it in your inbox, please check your *Spam / Junk* folder.`;
+}
 export const translations = {
   es: {
     // Home / Create Group
