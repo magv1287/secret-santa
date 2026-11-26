@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   Gift,
   Plus,
@@ -12,8 +12,12 @@ import {
   Sparkles,
   Ban,
 } from "lucide-react";
+import { detectDeviceLang, translations, type Lang } from "@/lib/i18n";
 
 export default function HomePage() {
+  const [lang, setLang] = useState<Lang>("en");
+  const t = translations[lang];
+
   const [name, setName] = useState("");
   const [budget, setBudget] = useState("");
   const [eventDate, setEventDate] = useState("");
@@ -30,6 +34,10 @@ export default function HomePage() {
     adminToken: string;
   } | null>(null);
   const [copiedKey, setCopiedKey] = useState<string | null>(null);
+
+  useEffect(() => {
+    setLang(detectDeviceLang());
+  }, []);
 
   const validParticipants = participants
     .map((p, i) => ({ name: p.trim(), idx: i }))
@@ -48,7 +56,6 @@ export default function HomePage() {
   function removeParticipant(index: number) {
     if (participants.length <= 3) return;
     setParticipants(participants.filter((_, i) => i !== index));
-    // Limpiar exclusiones que referencien este índice o reajustar
     setExclusions([]);
   }
 
@@ -76,7 +83,6 @@ export default function HomePage() {
     setLoading(true);
 
     try {
-      // Mapear índices originales a índices limpios (sin vacíos)
       const cleanList: string[] = [];
       const indexMap = new Map<number, number>();
       participants.forEach((p, idx) => {
@@ -111,12 +117,12 @@ export default function HomePage() {
 
       const data = await res.json();
       if (!res.ok) {
-        setError(data.error || "Error al crear el grupo.");
+        setError(data.error || t.createGroupError);
       } else {
         setCreated(data);
       }
     } catch {
-      setError("Error de conexión. Inténtalo de nuevo.");
+      setError(t.connectionError);
     } finally {
       setLoading(false);
     }
@@ -128,15 +134,28 @@ export default function HomePage() {
     setTimeout(() => setCopiedKey(null), 2000);
   }
 
+  const langToggle = (
+    <div className="mb-4 flex justify-end">
+      <button
+        type="button"
+        onClick={() => setLang(lang === "es" ? "en" : "es")}
+        className="rounded-lg border border-slate-800 bg-slate-900 px-2.5 py-1 text-xs font-medium text-slate-400 hover:text-white"
+      >
+        {lang === "es" ? "EN" : "ES"}
+      </button>
+    </div>
+  );
+
   if (created) {
     const origin =
       typeof window !== "undefined" ? window.location.origin : "";
     const groupUrl = `${origin}/g/${created.groupId}`;
     const adminUrl = `${origin}/g/${created.groupId}/admin?token=${created.adminToken}`;
-    const whatsappMsg = `🎄 ¡Ya está listo el sorteo de ${name}!\n\nEntra aquí, toca tu nombre y crea tu PIN de 4 dígitos para ver a quién te tocó:\n${groupUrl}`;
+    const whatsappMsg = t.whatsappMessage(name, groupUrl);
 
     return (
-      <main className="mx-auto max-w-xl px-4 py-12">
+      <main className="mx-auto max-w-xl px-4 py-8">
+        {langToggle}
         <div className="rounded-2xl border border-emerald-500/30 bg-slate-900/90 p-6 shadow-2xl">
           <div className="mb-4 flex items-center gap-3">
             <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-emerald-500/20 text-emerald-400">
@@ -144,18 +163,16 @@ export default function HomePage() {
             </div>
             <div>
               <h1 className="text-2xl font-bold text-white">
-                ¡Sorteo creado con éxito!
+                {t.createdTitle}
               </h1>
-              <p className="text-sm text-slate-400">
-                100% ciego. Nadie sabe a quién le tocó cada quien.
-              </p>
+              <p className="text-sm text-slate-400">{t.createdSubtitle}</p>
             </div>
           </div>
 
           <div className="mt-6 space-y-5">
             <div className="rounded-xl border border-slate-700 bg-slate-950/60 p-4">
               <p className="mb-1 text-xs font-semibold uppercase tracking-wider text-emerald-400">
-                1. Enlace único para el grupo (WhatsApp)
+                {t.groupLinkTitle}
               </p>
               <p className="mb-3 break-all text-sm text-slate-200">{groupUrl}</p>
               <div className="flex flex-wrap gap-2">
@@ -168,7 +185,7 @@ export default function HomePage() {
                   ) : (
                     <Copy className="h-4 w-4" />
                   )}
-                  {copiedKey === "group" ? "¡Copiado!" : "Copiar enlace"}
+                  {copiedKey === "group" ? t.copied : t.copyLink}
                 </button>
                 <button
                   onClick={() => copyText("wa", whatsappMsg)}
@@ -179,21 +196,16 @@ export default function HomePage() {
                   ) : (
                     <Copy className="h-4 w-4" />
                   )}
-                  {copiedKey === "wa"
-                    ? "¡Mensaje copiado!"
-                    : "Copiar mensaje WhatsApp"}
+                  {copiedKey === "wa" ? t.copiedWhatsApp : t.copyWhatsApp}
                 </button>
               </div>
             </div>
 
             <div className="rounded-xl border border-amber-500/30 bg-amber-950/20 p-4">
               <p className="mb-1 text-xs font-semibold uppercase tracking-wider text-amber-400">
-                2. Tu enlace privado de Administrador (¡Guárdalo!)
+                {t.adminLinkTitle}
               </p>
-              <p className="mb-2 text-xs text-slate-400">
-                Úsalo solo si alguien olvida su PIN y necesitas resetearlo en 1
-                clic. Nunca verás las parejas del sorteo.
-              </p>
+              <p className="mb-2 text-xs text-slate-400">{t.adminLinkDesc}</p>
               <p className="mb-3 break-all text-xs text-slate-300">{adminUrl}</p>
               <div className="flex flex-wrap gap-2">
                 <button
@@ -205,15 +217,13 @@ export default function HomePage() {
                   ) : (
                     <Copy className="h-4 w-4" />
                   )}
-                  {copiedKey === "admin"
-                    ? "¡Copiado!"
-                    : "Copiar enlace de Admin"}
+                  {copiedKey === "admin" ? t.copied : t.copyAdminLink}
                 </button>
                 <a
-                  href={groupUrl}
-                  className="inline-flex items-center gap-2 rounded-lg border border-slate-700 bg-slate-800 px-4 py-2 text-sm font-medium text-slate-200 hover:bg-slate-700"
+                  href={adminUrl}
+                  className="inline-flex items-center gap-2 rounded-lg border border-amber-500/40 bg-amber-500/10 px-4 py-2 text-sm font-medium text-amber-300 hover:bg-amber-500/20"
                 >
-                  Ir al grupo →
+                  {t.openAdminPanel}
                 </a>
               </div>
             </div>
@@ -224,18 +234,16 @@ export default function HomePage() {
   }
 
   return (
-    <main className="mx-auto max-w-2xl px-4 py-10">
+    <main className="mx-auto max-w-2xl px-4 py-8">
+      {langToggle}
       <div className="mb-8 text-center">
         <div className="mx-auto mb-3 flex h-14 w-14 items-center justify-center rounded-2xl bg-rose-500/20 text-rose-400">
           <Gift className="h-7 w-7" />
         </div>
         <h1 className="text-3xl font-extrabold tracking-tight text-white">
-          Secret Santa Sin Emails
+          {t.homeTitle}
         </h1>
-        <p className="mt-2 text-sm text-slate-400">
-          Un solo enlace para el grupo. Cada quien entra con su nombre y crea su
-          PIN de 4 dígitos.
-        </p>
+        <p className="mt-2 text-sm text-slate-400">{t.homeSubtitle}</p>
       </div>
 
       <form
@@ -245,12 +253,12 @@ export default function HomePage() {
         <div className="space-y-4">
           <div>
             <label className="mb-1.5 block text-sm font-medium text-slate-300">
-              Nombre del grupo *
+              {t.groupNameLabel}
             </label>
             <input
               type="text"
               required
-              placeholder="Ej: Navidad Familia 2026"
+              placeholder={t.groupNamePlaceholder}
               value={name}
               onChange={(e) => setName(e.target.value)}
               className="w-full rounded-xl border border-slate-700 bg-slate-950 px-4 py-2.5 text-white placeholder-slate-500 focus:border-rose-500 focus:outline-none"
@@ -260,11 +268,11 @@ export default function HomePage() {
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <div>
               <label className="mb-1.5 block text-sm font-medium text-slate-300">
-                Presupuesto (opcional)
+                {t.budgetLabel}
               </label>
               <input
                 type="text"
-                placeholder="Ej: $50 o 40€"
+                placeholder={t.budgetPlaceholder}
                 value={budget}
                 onChange={(e) => setBudget(e.target.value)}
                 className="w-full rounded-xl border border-slate-700 bg-slate-950 px-4 py-2.5 text-white placeholder-slate-500 focus:border-rose-500 focus:outline-none"
@@ -272,11 +280,11 @@ export default function HomePage() {
             </div>
             <div>
               <label className="mb-1.5 block text-sm font-medium text-slate-300">
-                Fecha de entrega (opcional)
+                {t.eventDateLabel}
               </label>
               <input
                 type="text"
-                placeholder="Ej: 24 de diciembre"
+                placeholder={t.eventDatePlaceholder}
                 value={eventDate}
                 onChange={(e) => setEventDate(e.target.value)}
                 className="w-full rounded-xl border border-slate-700 bg-slate-950 px-4 py-2.5 text-white placeholder-slate-500 focus:border-rose-500 focus:outline-none"
@@ -286,11 +294,11 @@ export default function HomePage() {
 
           <div>
             <label className="mb-1.5 block text-sm font-medium text-slate-300">
-              Notas o reglas (opcional)
+              {t.notesLabel}
             </label>
             <textarea
               rows={2}
-              placeholder="Ej: No se valen tarjetas de regalo, poner pista en el paquete..."
+              placeholder={t.notesPlaceholder}
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
               className="w-full rounded-xl border border-slate-700 bg-slate-950 px-4 py-2.5 text-white placeholder-slate-500 focus:border-rose-500 focus:outline-none"
@@ -298,19 +306,18 @@ export default function HomePage() {
           </div>
         </div>
 
-        {/* Participantes */}
         <div className="border-t border-slate-800 pt-5">
           <div className="mb-3 flex items-center justify-between">
             <label className="flex items-center gap-2 text-sm font-semibold text-white">
               <Users className="h-4 w-4 text-rose-400" />
-              Participantes ({validParticipants.length})
+              {t.participantsLabel} ({validParticipants.length})
             </label>
             <button
               type="button"
               onClick={addParticipant}
               className="inline-flex items-center gap-1 rounded-lg bg-slate-800 px-3 py-1.5 text-xs font-medium text-slate-200 hover:bg-slate-700"
             >
-              <Plus className="h-3.5 w-3.5" /> Añadir persona
+              <Plus className="h-3.5 w-3.5" /> {t.addPerson}
             </button>
           </div>
 
@@ -319,7 +326,7 @@ export default function HomePage() {
               <div key={idx} className="flex items-center gap-2">
                 <input
                   type="text"
-                  placeholder={`Participante ${idx + 1}`}
+                  placeholder={`${t.participantPlaceholder} ${idx + 1}`}
                   value={p}
                   onChange={(e) => updateParticipant(idx, e.target.value)}
                   className="w-full rounded-xl border border-slate-700 bg-slate-950 px-4 py-2 text-sm text-white placeholder-slate-500 focus:border-rose-500 focus:outline-none"
@@ -329,7 +336,7 @@ export default function HomePage() {
                     type="button"
                     onClick={() => removeParticipant(idx)}
                     className="rounded-xl border border-slate-800 p-2.5 text-slate-400 hover:border-rose-500/40 hover:text-rose-400"
-                    title="Eliminar"
+                    title={t.removeTitle}
                   >
                     <Trash2 className="h-4 w-4" />
                   </button>
@@ -339,15 +346,14 @@ export default function HomePage() {
           </div>
         </div>
 
-        {/* Exclusiones opcionales */}
         {validParticipants.length >= 4 && (
           <div className="border-t border-slate-800 pt-5">
             <label className="mb-2 flex items-center gap-2 text-sm font-semibold text-white">
               <Ban className="h-4 w-4 text-amber-400" />
-              Exclusiones opcionales (ej. parejas)
+              {t.exclusionsTitle}
             </label>
             <p className="mb-3 text-xs text-slate-400">
-              Las personas emparejadas aquí no se regalarán entre sí.
+              {t.exclusionsSubtitle}
             </p>
             <div className="flex flex-col gap-2 sm:flex-row">
               <select
@@ -355,7 +361,7 @@ export default function HomePage() {
                 onChange={(e) => setExclA(e.target.value)}
                 className="flex-1 rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-white focus:border-rose-500 focus:outline-none"
               >
-                <option value="">Selecciona persona 1</option>
+                <option value="">{t.selectPerson1}</option>
                 {validParticipants.map((p) => (
                   <option key={p.idx} value={p.idx}>
                     {p.name}
@@ -367,7 +373,7 @@ export default function HomePage() {
                 onChange={(e) => setExclB(e.target.value)}
                 className="flex-1 rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-white focus:border-rose-500 focus:outline-none"
               >
-                <option value="">Selecciona persona 2</option>
+                <option value="">{t.selectPerson2}</option>
                 {validParticipants.map((p) => (
                   <option key={p.idx} value={p.idx}>
                     {p.name}
@@ -379,7 +385,7 @@ export default function HomePage() {
                 onClick={addExclusion}
                 className="rounded-xl bg-slate-800 px-4 py-2 text-sm font-medium text-white hover:bg-slate-700"
               >
-                Añadir
+                {t.addBtn}
               </button>
             </div>
 
@@ -417,7 +423,7 @@ export default function HomePage() {
           className="flex w-full items-center justify-center gap-2 rounded-xl bg-rose-600 px-6 py-3.5 text-base font-semibold text-white shadow-lg shadow-rose-900/30 transition hover:bg-rose-500 disabled:opacity-50"
         >
           <ShieldCheck className="h-5 w-5" />
-          {loading ? "Realizando sorteo..." : "Crear grupo y hacer sorteo"}
+          {loading ? t.creatingBtn : t.createBtn}
         </button>
       </form>
     </main>

@@ -3,19 +3,11 @@ export interface DrawParticipant {
   exclusions: string[];
 }
 
-/**
- * Asigna a cada participante un amigo secreto usando backtracking aleatorizado.
- * Garantiza:
- * - Nadie se regala a sí mismo.
- * - Se respetan todas las exclusiones configuradas.
- * - Todos regalan y todos reciben exactamente 1 regalo.
- */
 export function runSecretSantaDraw(
   participants: DrawParticipant[]
 ): Map<string, string> | null {
   if (participants.length < 3) return null;
 
-  // Ordenar primero a quienes tienen más restricciones para resolver rápido
   const sorted = [...participants].sort(
     (a, b) => b.exclusions.length - a.exclusions.length
   );

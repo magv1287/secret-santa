@@ -1,0 +1,102 @@
+import type { Lang } from "@/lib/i18n";
+
+export async function sendSecretSantaEmail({
+  toEmail,
+  toName,
+  groupName,
+  directUrl,
+  pin,
+  lang = "en",
+}: {
+  toEmail: string;
+  toName: string;
+  groupName: string;
+  directUrl: string;
+  pin?: string;
+  lang?: Lang;
+}) {
+  const apiKey = process.env.BREVO_API_KEY;
+  const senderEmail = process.env.BREVO_SENDER_EMAIL;
+
+  if (!apiKey || !senderEmail) {
+    throw new Error(
+      "Faltan BREVO_API_KEY o BREVO_SENDER_EMAIL en las variables de entorno."
+    );
+  }
+
+  const isEs = lang === "es";
+
+  const subject = isEs
+    ? `🎁 Tu acceso al Secret Santa: ${groupName}`
+    : `🎁 Your Secret Santa access: ${groupName}`;
+
+  const pinBlock = pin
+    ? isEs
+      ? `<div style="background:#f1f5f9;border-radius:10px;padding:14px 18px;margin:18px 0;text-align:center;">
+           <p style="margin:0 0 6px 0;font-size:12px;color:#475569;text-transform:uppercase;letter-spacing:1px;">Tu PIN de 4 dígitos</p>
+           <p style="margin:0;font-size:28px;font-weight:bold;letter-spacing:6px;color:#0f172a;">${pin}</p>
+         </div>`
+      : `<div style="background:#f1f5f9;border-radius:10px;padding:14px 18px;margin:18px 0;text-align:center;">
+           <p style="margin:0 0 6px 0;font-size:12px;color:#475569;text-transform:uppercase;letter-spacing:1px;">Your 4-digit PIN</p>
+           <p style="margin:0;font-size:28px;font-weight:bold;letter-spacing:6px;color:#0f172a;">${pin}</p>
+         </div>`
+    : "";
+
+  const htmlContent = isEs
+    ? `
+      <div style="font-family: sans-serif; max-width: 500px; margin: 0 auto; padding: 20px; color: #0f172a;">
+        <h2>¡Hola, ${toName}! 🎄</h2>
+        <p>Aquí tienes tu enlace personal y privado para entrar directo a tu cuenta de <strong>${groupName}</strong> (sin tener que volver a poner tu PIN):</p>
+        ${pinBlock}
+        <p style="margin: 24px 0; text-align: center;">
+          <a href="${directUrl}" style="background-color: #e11d48; color: white; padding: 12px 24px; text-decoration: none; border-radius: 8px; font-weight: bold; display: inline-block;">
+            Entrar a mi Amigo Secreto
+          </a>
+        </p>
+        <p style="font-size: 12px; color: #64748b;">
+          Guarda este correo por si cambias de teléfono o computadora. No compartas este enlace con nadie más.
+        </p>
+        <p style="font-size: 11px; color: #94a3b8; word-break: break-all;">
+          ${directUrl}
+        </p>
+      </div>
+    `
+    : `
+      <div style="font-family: sans-serif; max-width: 500px; margin: 0 auto; padding: 20px; color: #0f172a;">
+        <h2>Hi, ${toName}! 🎄</h2>
+        <p>Here is your personal, private link to go straight into your <strong>${groupName}</strong> account (no need to re-enter your PIN):</p>
+        ${pinBlock}
+        <p style="margin: 24px 0; text-align: center;">
+          <a href="${directUrl}" style="background-color: #e11d48; color: white; padding: 12px 24px; text-decoration: none; border-radius: 8px; font-weight: bold; display: inline-block;">
+            Open my Secret Santa
+          </a>
+        </p>
+        <p style="font-size: 12px; color: #64748b;">
+          Keep this email in case you switch phones or computers. Please do not share this private link with anyone else.
+        </p>
+        <p style="font-size: 11px; color: #94a3b8; word-break: break-all;">
+          ${directUrl}
+        </p>
+      </div>
+    `;
+
+  const res = await fetch("https://api.brevo.com/v3/smtp/email", {
+    method: "POST",
+    headers: {
+      accept: "application/json",
+      "api-key": apiKey,
+      "content-type": "application/json",
+    },
+    body: JSON.stringify({
+      sender: { name: "Secret Santa", email: senderEmail },
+      to: [{ email: toEmail, name: toName }],
+      subject,
+      htmlContent,
+    }),
+  });
+
+  if (!res.ok) {
+    const errText = await res.text();
+    throw new Error(`Brevo error: ${errText}`);
+  }
+}

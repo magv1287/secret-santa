@@ -1,20 +1,21 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
-import { useParams } from "next/navigation";
+import { useEffect, useState, useCallback, Suspense } from "react";
+import { useParams, useSearchParams } from "next/navigation";
 import {
   Gift,
   Lock,
   UserCheck,
   Eye,
   EyeOff,
-  LogOut,
   Save,
   Check,
   Calendar,
   Wallet,
   Sparkles,
+  Mail,
 } from "lucide-react";
+import { detectDeviceLang, translations, type Lang } from "@/lib/i18n";
 
 interface GroupInfo {
   id: string;
@@ -40,9 +41,14 @@ interface SessionInfo {
   } | null;
 }
 
-export default function GroupPage() {
+function GroupContent() {
   const params = useParams();
+  const searchParams = useSearchParams();
   const groupId = params.groupId as string;
+  const magicToken = searchParams.get("t");
+
+  const [lang, setLang] = useState<Lang>("en");
+  const t = translations[lang];
 
   const [group, setGroup] = useState<GroupInfo | null>(null);
   const [participants, setParticipants] = useState<ParticipantItem[]>([]);
@@ -54,6 +60,7 @@ export default function GroupPage() {
   const [selected, setSelected] = useState<ParticipantItem | null>(null);
   const [pin, setPin] = useState("");
   const [confirmPin, setConfirmPin] = useState("");
+  const [email, setEmail] = useState("");
   const [modalError, setModalError] = useState("");
   const [submitting, setSubmitting] = useState(false);
 
@@ -62,6 +69,11 @@ export default function GroupPage() {
   const [myWishlist, setMyWishlist] = useState("");
   const [savingWishlist, setSavingWishlist] = useState(false);
   const [savedOk, setSavedOk] = useState(false);
+  const [emailSentBanner, setEmailSentBanner] = useState(false);
+
+  useEffect(() => {
+    setLang(detectDeviceLang());
+  }, []);
 
   const loadGroup = useCallback(async () => {
     try {
@@ -69,7 +81,7 @@ export default function GroupPage() {
       const res = await fetch(`/api/groups/${groupId}`, { cache: "no-store" });
       const data = await res.json();
       if (!res.ok) {
-        setPageError(data.error || "No se pudo cargar el grupo.");
+        setPageError(data.error || "Could not load group.");
         return;
       }
       setGroup(data.group);
@@ -79,15 +91,39 @@ export default function GroupPage() {
         setMyWishlist(data.session.wishlist || "");
       }
     } catch {
-      setPageError("Error de conexión al cargar el grupo.");
+      setPageError("Connection error.");
     } finally {
       setLoading(false);
     }
   }, [groupId]);
 
+  // Si llega con ?t=magicToken (desde Brevo), autenticar directo y limpiar URL
   useEffect(() => {
-    loadGroup();
-  }, [loadGroup]);
+    let active = true;
+    async function init() {
+      if (magicToken) {
+        try {
+          await fetch(`/api/groups/${groupId}/magic`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ token: magicToken }),
+          });
+          if (typeof window !== "undefined") {
+            window.history.replaceState({}, "", `/g/${groupId}`);
+          }
+        } catch {
+          // Si falla el token, simplemente cargamos la vista normal
+        }
+      }
+      if (active) {
+        await loadGroup();
+      }
+    }
+    init();
+    return () => {
+      active = false;
+    };
+  }, [groupId, magicToken, loadGroup]);
 
   async function handleAuthSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -95,12 +131,18 @@ export default function GroupPage() {
     setModalError("");
 
     if (!/^[0-9]{4}$/.test(pin)) {
-      setModalError("El PIN debe ser de exactamente 4 números.");
+      setModalError(t.pinError4Digits);
       return;
     }
 
     if (!selected.claimed && pin !== confirmPin) {
-      setModalError("Los dos PIN no coinciden.");
+      setModalError(t.pinErrorMismatch);
+      return;
+    }
+
+    const cleanEmail = email.trim();
+    if (!selected.claimed && cleanEmail && !cleanEmail.includes("@")) {
+      setModalError(t.emailInvalidError);
       return;
     }
 
@@ -113,20 +155,29 @@ export default function GroupPage() {
       const res = await fetch(endpoint, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ participantId: selected.id, pin }),
+        body: JSON.stringify({
+          participantId: selected.id,
+          pin,
+          email: !selected.claimed ? cleanEmail : undefined,
+          lang,
+        }),
       });
 
       const data = await res.json();
       if (!res.ok) {
-        setModalError(data.error || "Error al entrar.");
+        setModalError(data.error || t.connectionError);
       } else {
+        if (data.emailSent) {
+          setEmailSentBanner(true);
+        }
         setSelected(null);
         setPin("");
         setConfirmPin("");
+        setEmail("");
         await loadGroup();
       }
     } catch {
-      setModalError("Error de conexión.");
+      setModalError(t.connectionError);
     } finally {
       setSubmitting(false);
     }
@@ -150,17 +201,29 @@ export default function GroupPage() {
     }
   }
 
-  async function handleLogout() {
+  async function handleSwitchPerson() {
+    if (!confirm(t.confirmSwitchPerson)) return;
     await fetch(`/api/groups/${groupId}/logout`, { method: "POST" });
     setSession(null);
     setRevealed(false);
+    setEmailSentBanner(false);
     await loadGroup();
   }
+
+  const langToggle = (
+    <button
+      type="button"
+      onClick={() => setLang(lang === "es" ? "en" : "es")}
+      className="rounded-lg border border-slate-800 bg-slate-900 px-2.5 py-1 text-xs font-medium text-slate-400 hover:text-white"
+    >
+      {lang === "es" ? "EN" : "ES"}
+    </button>
+  );
 
   if (loading) {
     return (
       <main className="flex min-h-screen items-center justify-center text-slate-400">
-        Cargando sorteo...
+        {t.loadingDraw}
       </main>
     );
   }
@@ -169,47 +232,50 @@ export default function GroupPage() {
     return (
       <main className="mx-auto max-w-md px-4 py-16 text-center">
         <p className="rounded-xl border border-rose-500/30 bg-rose-500/10 p-6 text-rose-300">
-          {pageError || "Grupo no encontrado."}
+          {pageError || t.groupNotFound}
         </p>
       </main>
     );
   }
 
-  // Vista autenticada (ya entró con su PIN o con su cookie de 60 días)
+  // Vista autenticada (directa con cookie de 60 días o magic link)
   if (session) {
     return (
-      <main className="mx-auto max-w-xl px-4 py-10">
+      <main className="mx-auto max-w-xl px-4 py-8">
         <div className="mb-6 flex items-center justify-between">
           <div>
             <p className="text-xs font-semibold uppercase tracking-wider text-rose-400">
               {group.name}
             </p>
             <h1 className="text-2xl font-bold text-white">
-              Hola, {session.name} 👋
+              {t.helloUser(session.name)}
             </h1>
           </div>
-          <button
-            onClick={handleLogout}
-            className="inline-flex items-center gap-1.5 rounded-xl border border-slate-800 bg-slate-900 px-3 py-2 text-xs font-medium text-slate-300 hover:bg-slate-800"
-          >
-            <LogOut className="h-3.5 w-3.5" /> Salir
-          </button>
+          {langToggle}
         </div>
 
-        {/* Detalles del grupo */}
+        {emailSentBanner && (
+          <div className="mb-5 flex items-center gap-2 rounded-xl border border-emerald-500/30 bg-emerald-500/10 px-4 py-3 text-xs text-emerald-300">
+            <Mail className="h-4 w-4 shrink-0" />
+            <span>{t.emailSentBanner}</span>
+          </div>
+        )}
+
         {(group.budget || group.eventDate || group.notes) && (
           <div className="mb-6 rounded-2xl border border-slate-800 bg-slate-900/60 p-4 text-sm text-slate-300">
             <div className="flex flex-wrap gap-4">
               {group.budget && (
                 <span className="inline-flex items-center gap-1.5">
                   <Wallet className="h-4 w-4 text-emerald-400" />
-                  Presupuesto: <strong className="text-white">{group.budget}</strong>
+                  {t.budgetPrefix}{" "}
+                  <strong className="text-white">{group.budget}</strong>
                 </span>
               )}
               {group.eventDate && (
                 <span className="inline-flex items-center gap-1.5">
                   <Calendar className="h-4 w-4 text-sky-400" />
-                  Fecha: <strong className="text-white">{group.eventDate}</strong>
+                  {t.datePrefix}{" "}
+                  <strong className="text-white">{group.eventDate}</strong>
                 </span>
               )}
             </div>
@@ -221,12 +287,11 @@ export default function GroupPage() {
           </div>
         )}
 
-        {/* Tarjeta del Amigo Secreto */}
         <div className="mb-6 rounded-2xl border border-rose-500/30 bg-gradient-to-br from-rose-950/40 via-slate-900 to-slate-900 p-6 text-center shadow-xl">
           <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-2xl bg-rose-500/20 text-rose-400">
             <Gift className="h-6 w-6" />
           </div>
-          <p className="text-sm text-slate-400">Te tocó regalarle a:</p>
+          <p className="text-sm text-slate-400">{t.youGot}</p>
 
           {revealed ? (
             <div className="mt-3">
@@ -236,7 +301,7 @@ export default function GroupPage() {
 
               <div className="mt-5 rounded-xl border border-slate-800 bg-slate-950/70 p-4 text-left">
                 <p className="mb-1 text-xs font-semibold uppercase tracking-wider text-rose-400">
-                  Lista de deseos de {session.assignedTo?.name}
+                  {t.wishlistOf(session.assignedTo?.name || "")}
                 </p>
                 {session.assignedTo?.wishlist ? (
                   <p className="whitespace-pre-wrap text-sm text-slate-200">
@@ -244,8 +309,7 @@ export default function GroupPage() {
                   </p>
                 ) : (
                   <p className="text-sm italic text-slate-500">
-                    Todavía no ha escrito ideas de regalo. Vuelve a revisar más
-                    adelante.
+                    {t.noWishlistYet}
                   </p>
                 )}
               </div>
@@ -254,7 +318,7 @@ export default function GroupPage() {
                 onClick={() => setRevealed(false)}
                 className="mt-4 inline-flex items-center gap-1.5 text-xs text-slate-400 hover:text-white"
               >
-                <EyeOff className="h-3.5 w-3.5" /> Ocultar nombre
+                <EyeOff className="h-3.5 w-3.5" /> {t.hideName}
               </button>
             </div>
           ) : (
@@ -263,37 +327,33 @@ export default function GroupPage() {
                 onClick={() => setRevealed(true)}
                 className="inline-flex items-center gap-2 rounded-xl bg-rose-600 px-6 py-3 text-sm font-semibold text-white shadow-lg shadow-rose-900/30 hover:bg-rose-500"
               >
-                <Eye className="h-4 w-4" /> Tocar para revelar
+                <Eye className="h-4 w-4" /> {t.tapToReveal}
               </button>
               <p className="mt-2 text-xs text-slate-500">
-                Asegúrate de que nadie esté mirando tu pantalla 😉
+                {t.makeSureNobodyLooking}
               </p>
             </div>
           )}
         </div>
 
-        {/* Mi Wishlist */}
         <div className="rounded-2xl border border-slate-800 bg-slate-900/80 p-5">
           <div className="mb-2 flex items-center gap-2">
             <Sparkles className="h-4 w-4 text-amber-400" />
             <h2 className="text-base font-semibold text-white">
-              Mi lista de deseos (pistas para quien te regala)
+              {t.myWishlistTitle}
             </h2>
           </div>
-          <p className="mb-3 text-xs text-slate-400">
-            Escribe ideas, tallas, colores o enlaces. Solo la persona a la que
-            le tocaste podrá leer esto.
-          </p>
+          <p className="mb-3 text-xs text-slate-400">{t.myWishlistDesc}</p>
           <textarea
             rows={4}
             value={myWishlist}
             onChange={(e) => setMyWishlist(e.target.value)}
-            placeholder="Ej: Talla M, me gustan los chocolates oscuros, libros de ciencia ficción..."
+            placeholder={t.myWishlistPlaceholder}
             className="w-full rounded-xl border border-slate-700 bg-slate-950 p-3 text-sm text-white placeholder-slate-500 focus:border-rose-500 focus:outline-none"
           />
           <div className="mt-3 flex items-center justify-between">
             <span className="text-xs text-emerald-400">
-              {savedOk ? "✓ Guardado correctamente" : ""}
+              {savedOk ? t.savedOk : ""}
             </span>
             <button
               onClick={handleSaveWishlist}
@@ -305,9 +365,21 @@ export default function GroupPage() {
               ) : (
                 <Save className="h-4 w-4" />
               )}
-              {savingWishlist ? "Guardando..." : "Guardar lista"}
+              {savingWishlist ? t.savingBtn : t.saveListBtn}
             </button>
           </div>
+        </div>
+
+        {/* Footer discreto en lugar de botón "Salir" arriba */}
+        <div className="mt-8 space-y-2 text-center">
+          <p className="text-xs text-slate-500">{t.sessionSavedNote}</p>
+          <button
+            type="button"
+            onClick={handleSwitchPerson}
+            className="text-xs text-slate-500 underline decoration-slate-700 underline-offset-4 hover:text-slate-300"
+          >
+            {t.sharedDeviceLink}
+          </button>
         </div>
       </main>
     );
@@ -315,19 +387,26 @@ export default function GroupPage() {
 
   // Vista pública del grupo (seleccionar nombre)
   return (
-    <main className="mx-auto max-w-xl px-4 py-10">
+    <main className="mx-auto max-w-xl px-4 py-8">
+      <div className="mb-2 flex justify-end">{langToggle}</div>
       <div className="mb-8 text-center">
         <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-2xl bg-rose-500/20 text-rose-400">
           <Gift className="h-6 w-6" />
         </div>
         <h1 className="text-3xl font-extrabold text-white">{group.name}</h1>
-        <p className="mt-2 text-sm text-slate-400">
-          Toca tu nombre para ver tu Amigo Secreto.
-        </p>
+        <p className="mt-2 text-sm text-slate-400">{t.tapYourName}</p>
         {(group.budget || group.eventDate) && (
           <div className="mt-3 flex justify-center gap-4 text-xs text-slate-300">
-            {group.budget && <span>Presupuesto: {group.budget}</span>}
-            {group.eventDate && <span>Fecha: {group.eventDate}</span>}
+            {group.budget && (
+              <span>
+                {t.budgetPrefix} {group.budget}
+              </span>
+            )}
+            {group.eventDate && (
+              <span>
+                {t.datePrefix} {group.eventDate}
+              </span>
+            )}
           </div>
         )}
       </div>
@@ -340,6 +419,7 @@ export default function GroupPage() {
               setSelected(p);
               setPin("");
               setConfirmPin("");
+              setEmail("");
               setModalError("");
             }}
             className="flex w-full items-center justify-between rounded-2xl border border-slate-800 bg-slate-900/80 px-5 py-4 text-left transition hover:border-rose-500/50 hover:bg-slate-900"
@@ -347,11 +427,11 @@ export default function GroupPage() {
             <span className="text-base font-semibold text-white">{p.name}</span>
             {p.claimed ? (
               <span className="inline-flex items-center gap-1.5 rounded-full bg-slate-800 px-3 py-1 text-xs font-medium text-slate-300">
-                <Lock className="h-3 w-3" /> Ya reclamado
+                <Lock className="h-3 w-3" /> {t.claimedBadge}
               </span>
             ) : (
               <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-500/15 px-3 py-1 text-xs font-medium text-emerald-400">
-                <UserCheck className="h-3 w-3" /> Disponible
+                <UserCheck className="h-3 w-3" /> {t.availableBadge}
               </span>
             )}
           </button>
@@ -359,29 +439,25 @@ export default function GroupPage() {
       </div>
 
       <p className="mt-8 text-center text-xs text-slate-500">
-        Tu PIN se guarda encriptado y tu sesión queda abierta 60 días en este
-        dispositivo. Ni siquiera el organizador puede ver a quién te tocó.
+        {t.privacyFooter}
       </p>
 
-      {/* Modal de PIN */}
       {selected && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 p-4 backdrop-blur-sm">
           <div className="w-full max-w-sm rounded-2xl border border-slate-800 bg-slate-900 p-6 shadow-2xl">
             <h2 className="text-xl font-bold text-white">
               {selected.claimed
-                ? `Entrar como ${selected.name}`
-                : `¿Seguro que eres ${selected.name}?`}
+                ? t.loginAs(selected.name)
+                : t.confirmName(selected.name)}
             </h2>
             <p className="mt-1 text-xs text-slate-400">
-              {selected.claimed
-                ? "Introduce tu PIN de 4 dígitos."
-                : "Crea un PIN de 4 dígitos para proteger tu perfil. Nadie más podrá abrirlo."}
+              {selected.claimed ? t.loginDesc : t.claimDesc}
             </p>
 
             <form onSubmit={handleAuthSubmit} className="mt-5 space-y-4">
               <div>
                 <label className="mb-1 block text-xs font-medium text-slate-300">
-                  PIN de 4 dígitos
+                  {t.pinLabel}
                 </label>
                 <input
                   type="password"
@@ -396,22 +472,41 @@ export default function GroupPage() {
               </div>
 
               {!selected.claimed && (
-                <div>
-                  <label className="mb-1 block text-xs font-medium text-slate-300">
-                    Confirma tu PIN
-                  </label>
-                  <input
-                    type="password"
-                    inputMode="numeric"
-                    maxLength={4}
-                    value={confirmPin}
-                    onChange={(e) =>
-                      setConfirmPin(e.target.value.replace(/\D/g, ""))
-                    }
-                    placeholder="••••"
-                    className="w-full rounded-xl border border-slate-700 bg-slate-950 px-4 py-3 text-center text-2xl tracking-[0.5em] text-white focus:border-rose-500 focus:outline-none"
-                  />
-                </div>
+                <>
+                  <div>
+                    <label className="mb-1 block text-xs font-medium text-slate-300">
+                      {t.confirmPinLabel}
+                    </label>
+                    <input
+                      type="password"
+                      inputMode="numeric"
+                      maxLength={4}
+                      value={confirmPin}
+                      onChange={(e) =>
+                        setConfirmPin(e.target.value.replace(/\D/g, ""))
+                      }
+                      placeholder="••••"
+                      className="w-full rounded-xl border border-slate-700 bg-slate-950 px-4 py-3 text-center text-2xl tracking-[0.5em] text-white focus:border-rose-500 focus:outline-none"
+                    />
+                  </div>
+
+                  <div className="rounded-xl border border-slate-800 bg-slate-950/60 p-3">
+                    <label className="mb-1 flex items-center gap-1.5 text-xs font-medium text-slate-300">
+                      <Mail className="h-3.5 w-3.5 text-rose-400" />
+                      {t.optionalEmailLabel}
+                    </label>
+                    <input
+                      type="email"
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
+                      placeholder={t.optionalEmailPlaceholder}
+                      className="w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-xs text-white placeholder-slate-500 focus:border-rose-500 focus:outline-none"
+                    />
+                    <p className="mt-1.5 text-[11px] leading-relaxed text-slate-400">
+                      {t.optionalEmailHelp}
+                    </p>
+                  </div>
+                </>
               )}
 
               {modalError && (
@@ -424,7 +519,7 @@ export default function GroupPage() {
                   onClick={() => setSelected(null)}
                   className="flex-1 rounded-xl border border-slate-700 py-2.5 text-sm font-medium text-slate-300 hover:bg-slate-800"
                 >
-                  Cancelar
+                  {t.cancelBtn}
                 </button>
                 <button
                   type="submit"
@@ -432,10 +527,10 @@ export default function GroupPage() {
                   className="flex-1 rounded-xl bg-rose-600 py-2.5 text-sm font-semibold text-white hover:bg-rose-500 disabled:opacity-50"
                 >
                   {submitting
-                    ? "Entrando..."
+                    ? t.enteringBtn
                     : selected.claimed
-                    ? "Entrar"
-                    : "Crear PIN"}
+                    ? t.enterBtn
+                    : t.createPinBtn}
                 </button>
               </div>
             </form>
@@ -443,5 +538,19 @@ export default function GroupPage() {
         </div>
       )}
     </main>
+  );
+}
+
+export default function GroupPage() {
+  return (
+    <Suspense
+      fallback={
+        <main className="flex min-h-screen items-center justify-center text-slate-400">
+          Loading...
+        </main>
+      }
+    >
+      <GroupContent />
+    </Suspense>
   );
 }

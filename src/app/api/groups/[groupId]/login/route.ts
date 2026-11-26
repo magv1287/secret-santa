@@ -5,6 +5,9 @@ import {
   signSession,
   verifyPin,
 } from "@/lib/crypto";
+import type { Lang } from "@/lib/i18n";
+
+export const dynamic = "force-dynamic";
 
 export async function POST(
   request: Request,
@@ -12,14 +15,22 @@ export async function POST(
 ) {
   try {
     const { groupId } = params;
-    const { participantId, pin } = (await request.json()) as {
+    const { participantId, pin, lang } = (await request.json()) as {
       participantId: string;
       pin: string;
+      lang?: Lang;
     };
+
+    const userLang: Lang = lang === "es" ? "es" : "en";
 
     if (!participantId || !/^[0-9]{4}$/.test(pin || "")) {
       return NextResponse.json(
-        { error: "Introduce un PIN válido de 4 dígitos." },
+        {
+          error:
+            userLang === "es"
+              ? "Introduce un PIN válido de 4 dígitos."
+              : "Enter a valid 4-digit PIN.",
+        },
         { status: 400 }
       );
     }
@@ -33,23 +44,42 @@ export async function POST(
       .get();
 
     if (!pSnap.exists) {
-      return NextResponse.json(
-        { error: "Participante no encontrado." },
-        { status: 404 }
-      );
+      return NextResponse.json({ error: "Not found." }, { status: 404 });
     }
 
     const data = pSnap.data()!;
-    if (!data.claimed || !data.pinHash) {
+    if (!data.claimed) {
       return NextResponse.json(
-        { error: "Este perfil aún no tiene PIN. Reclámalo primero." },
+        {
+          error:
+            userLang === "es"
+              ? "Este perfil aún no tiene PIN. Reclámalo primero."
+              : "This profile has no PIN yet. Claim it first.",
+        },
+        { status: 400 }
+      );
+    }
+
+    if (!data.pinHash) {
+      return NextResponse.json(
+        {
+          error:
+            userLang === "es"
+              ? "Este perfil entró por enlace de correo y no tiene PIN. Usa el enlace de tu email."
+              : "This profile signed in via email link without a PIN. Please use your email link.",
+        },
         { status: 400 }
       );
     }
 
     if (!verifyPin(pin, data.pinHash)) {
       return NextResponse.json(
-        { error: "PIN incorrecto. Inténtalo de nuevo." },
+        {
+          error:
+            userLang === "es"
+              ? "PIN incorrecto. Inténtalo de nuevo."
+              : "Incorrect PIN. Please try again.",
+        },
         { status: 401 }
       );
     }
@@ -65,7 +95,7 @@ export async function POST(
       httpOnly: true,
       secure: process.env.NODE_ENV === "production",
       sameSite: "lax",
-      maxAge: 60 * 60 * 24 * 60, // 60 días
+      maxAge: 60 * 60 * 24 * 60,
       path: "/",
     });
 
@@ -73,7 +103,7 @@ export async function POST(
   } catch (error) {
     console.error("Error logging in:", error);
     return NextResponse.json(
-      { error: "Error al iniciar sesión." },
+      { error: "Error signing in." },
       { status: 500 }
     );
   }

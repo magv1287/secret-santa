@@ -5,9 +5,9 @@ import "./globals.css";
 const inter = Inter({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
-  title: "Secret Santa | Sorteo Ciego con PIN",
+  title: "Secret Santa",
   description:
-    "Organiza tu Amigo Secreto con un solo enlace para WhatsApp. Sin correos obligatorios ni bloqueos.",
+    "Blind Secret Santa draw with 4-digit PIN, 60-day session, and optional email backup.",
 };
 
 export default function RootLayout({
@@ -16,7 +16,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="es">
+    <html lang="en">
       <body className={`${inter.className} min-h-screen antialiased`}>
         {children}
       </body>

@@ -3,6 +3,8 @@ import { cookies } from "next/headers";
 import { getDb } from "@/lib/firebase-admin";
 import { getSessionCookieName, verifySession } from "@/lib/crypto";
 
+export const dynamic = "force-dynamic";
+
 export async function GET(
   _request: Request,
   { params }: { params: { groupId: string } }
@@ -14,7 +16,7 @@ export async function GET(
 
     if (!groupSnap.exists) {
       return NextResponse.json(
-        { error: "Grupo no encontrado." },
+        { error: "Group not found." },
         { status: 404 }
       );
     }
@@ -34,7 +36,6 @@ export async function GET(
       };
     });
 
-    // Verificar si el navegador ya tiene una cookie válida de 60 días
     let sessionData = null;
     const cookieName = getSessionCookieName(groupId);
     const cookieVal = cookies().get(cookieName)?.value;
@@ -83,7 +84,7 @@ export async function GET(
   } catch (error) {
     console.error("Error fetching group:", error);
     return NextResponse.json(
-      { error: "Error al cargar el grupo." },
+      { error: "Error loading group." },
       { status: 500 }
     );
   }

@@ -1,5 +1,10 @@
 import { NextResponse } from "next/server";
 import { getDb } from "@/lib/firebase-admin";
+import { generateToken } from "@/lib/crypto";
+import { sendSecretSantaEmail } from "@/lib/brevo";
+import type { Lang } from "@/lib/i18n";
+
+export const dynamic = "force-dynamic";
 
 export async function GET(
   request: Request,
@@ -11,18 +16,18 @@ export async function GET(
     const token = searchParams.get("token");
 
     if (!token) {
-      return NextResponse.json({ error: "Token requerido." }, { status: 401 });
+      return NextResponse.json({ error: "Token required." }, { status: 401 });
     }
 
     const db = getDb();
     const groupSnap = await db.collection("groups").doc(groupId).get();
     if (!groupSnap.exists) {
-      return NextResponse.json({ error: "Grupo no encontrado." }, { status: 404 });
+      return NextResponse.json({ error: "Group not found." }, { status: 404 });
     }
 
     const groupData = groupSnap.data()!;
     if (groupData.adminToken !== token) {
-      return NextResponse.json({ error: "Token inválido." }, { status: 403 });
+      return NextResponse.json({ error: "Invalid token." }, { status: 403 });
     }
 
     const participantsSnap = await groupSnap.ref
@@ -30,12 +35,12 @@ export async function GET(
       .orderBy("name", "asc")
       .get();
 
-    // IMPORTANTE: Nunca devolver assignedToId aquí (panel 100% ciego)
     const participants = participantsSnap.docs.map((doc) => {
       const d = doc.data();
       return {
         id: doc.id,
         name: d.name as string,
+        email: (d.email as string) || "",
         claimed: Boolean(d.claimed),
         hasWishlist: Boolean(d.wishlist && String(d.wishlist).trim().length > 0),
       };
@@ -54,7 +59,7 @@ export async function GET(
   } catch (error) {
     console.error("Error in admin GET:", error);
     return NextResponse.json(
-      { error: "Error cargando el panel de administración." },
+      { error: "Error loading admin panel." },
       { status: 500 }
     );
   }
@@ -66,13 +71,19 @@ export async function POST(
 ) {
   try {
     const { groupId } = params;
-    const { token, participantId } = (await request.json()) as {
+    const body = (await request.json()) as {
       token: string;
       participantId: string;
+      action?: "reset_pin" | "send_email";
+      email?: string;
+      lang?: Lang;
     };
 
+    const { token, participantId, action = "reset_pin", email, lang } = body;
+    const emailLang: Lang = lang === "es" ? "es" : "en";
+
     if (!token || !participantId) {
-      return NextResponse.json({ error: "Datos incompletos." }, { status: 400 });
+      return NextResponse.json({ error: "Missing fields." }, { status: 400 });
     }
 
     const db = getDb();
@@ -80,25 +91,57 @@ export async function POST(
     const groupSnap = await groupRef.get();
 
     if (!groupSnap.exists) {
-      return NextResponse.json({ error: "Grupo no encontrado." }, { status: 404 });
+      return NextResponse.json({ error: "Group not found." }, { status: 404 });
     }
 
-    if (groupSnap.data()?.adminToken !== token) {
-      return NextResponse.json({ error: "Token inválido." }, { status: 403 });
+    const groupData = groupSnap.data()!;
+    if (groupData.adminToken !== token) {
+      return NextResponse.json({ error: "Invalid token." }, { status: 403 });
     }
 
     const pRef = groupRef.collection("participants").doc(participantId);
     const pSnap = await pRef.get();
     if (!pSnap.exists) {
       return NextResponse.json(
-        { error: "Participante no encontrado." },
+        { error: "Participant not found." },
         { status: 404 }
       );
     }
 
-    const currentVersion = (pSnap.data()?.pinVersion as number) || 1;
+    const pData = pSnap.data()!;
 
-    // Resetea el PIN e invalida cualquier cookie vieja de ese usuario
+    if (action === "send_email") {
+      const cleanEmail = (email || "").trim();
+      if (!cleanEmail || !cleanEmail.includes("@")) {
+        return NextResponse.json(
+          { error: "Invalid email address." },
+          { status: 400 }
+        );
+      }
+
+      const magicToken = (pData.magicToken as string) || generateToken(16);
+      const origin = new URL(request.url).origin;
+      const directUrl = `${origin}/g/${groupId}?t=${magicToken}`;
+
+      await sendSecretSantaEmail({
+        toEmail: cleanEmail,
+        toName: pData.name as string,
+        groupName: groupData.name as string,
+        directUrl,
+        lang: emailLang,
+      });
+
+      await pRef.update({
+        email: cleanEmail,
+        magicToken,
+        updatedAt: new Date().toISOString(),
+      });
+
+      return NextResponse.json({ ok: true });
+    }
+
+    // Reset PIN & invalidate old cookies
+    const currentVersion = (pData.pinVersion as number) || 1;
     await pRef.update({
       claimed: false,
       pinHash: null,
@@ -108,9 +151,9 @@ export async function POST(
 
     return NextResponse.json({ ok: true });
   } catch (error) {
-    console.error("Error resetting PIN:", error);
+    console.error("Error in admin POST:", error);
     return NextResponse.json(
-      { error: "No se pudo resetear el PIN." },
+      { error: "Error processing action." },
       { status: 500 }
     );
   }

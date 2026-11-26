@@ -1,22 +1,17 @@
-# Secret Santa (Sin Emails, Enlace Único + PIN + Cookie 60 días)
+# Secret Santa (Bilingüe ES/EN + PIN + Cookie 60 días + Brevo)
 
-Aplicación de Amigo Secreto en Next.js (App Router) + Firebase Firestore + Vercel.
+Aplicación de Amigo Secreto en Next.js (App Router) + Firebase Firestore + Brevo + Vercel.
 
 ## Características
-- **Un solo enlace para el grupo** (ideal para WhatsApp).
-- **Nombre + PIN de 4 dígitos** (sin emails que bloqueen el sorteo).
-- **Cookie segura de 60 días** (`HttpOnly`) para no volver a pedir el PIN en el mismo dispositivo.
-- **100% ciego y a prueba de trampas**: toda la lógica y las lecturas de Firestore se ejecutan en el servidor con Firebase Admin SDK.
-- **Panel de Admin Ciego**: permite resetear el PIN de cualquier participante en 1 clic sin ver jamás quién le tocó a quién.
-- **Exclusiones** (ej. parejas que no pueden regalarse entre sí) y **Wishlist** editable.
+- **Idioma automático (ES/EN):** Detecta el idioma del dispositivo; si es español muestra español, para inglés o cualquier otro idioma muestra inglés (con botón rápido ES/EN).
+- **Sesión persistente (60 días):** Sin botón visible de "Salir" arriba para evitar cierres accidentales; incluye un enlace discreto al final solo para teléfonos compartidos.
+- **Correo opcional con PIN + enlace directo:** Al crear su PIN, cada participante puede poner su correo (opcional) para recibir su PIN y un enlace directo sin PIN vía Brevo. Si hay un error en el correo, nunca bloquea el acceso.
+- **Panel de Admin Ciego:** Permite enviar/corregir enlaces directos por Brevo y resetear PINs en 1 clic sin ver jamás las parejas del sorteo.
 
-## Despliegue rápido en Vercel
-1. Crea un proyecto en Firebase y activa **Firestore Database** en modo producción.
-2. En Firebase -> Firestore -> **Reglas**, pega el contenido de `firestore.rules` y publica.
-3. En Firebase -> **Configuración del proyecto -> Cuentas de servicio**, genera una nueva clave privada (archivo JSON).
-4. Sube este repositorio a GitHub (sin archivos `.env`).
-5. Importa el repositorio en Vercel y añade estas 4 variables de entorno en **Settings -> Environment Variables**:
-   - `FIREBASE_PROJECT_ID`
-   - `FIREBASE_CLIENT_EMAIL`
-   - `FIREBASE_PRIVATE_KEY`
-   - `AUTH_SECRET` (cualquier texto aleatorio largo)
+## Variables de entorno en Vercel
+- `FIREBASE_PROJECT_ID`
+- `FIREBASE_CLIENT_EMAIL`
+- `FIREBASE_PRIVATE_KEY`
+- `AUTH_SECRET`
+- `BREVO_API_KEY` (opcional)
+- `BREVO_SENDER_EMAIL` (opcional)

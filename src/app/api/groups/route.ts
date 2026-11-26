@@ -3,13 +3,15 @@ import { getDb } from "@/lib/firebase-admin";
 import { generateToken, slugify } from "@/lib/crypto";
 import { runSecretSantaDraw } from "@/lib/draw";
 
+export const dynamic = "force-dynamic";
+
 interface CreateGroupBody {
   name: string;
   budget?: string;
   eventDate?: string;
   notes?: string;
   participants: string[];
-  exclusions?: Array<[number, number]>; // pares de índices que no pueden regalarse entre sí
+  exclusions?: Array<[number, number]>;
 }
 
 export async function POST(request: Request) {
@@ -19,7 +21,7 @@ export async function POST(request: Request) {
     const groupName = body.name?.trim();
     if (!groupName) {
       return NextResponse.json(
-        { error: "El nombre del grupo es obligatorio." },
+        { error: "Group name is required / El nombre del grupo es obligatorio." },
         { status: 400 }
       );
     }
@@ -30,28 +32,25 @@ export async function POST(request: Request) {
 
     if (cleanNames.length < 3) {
       return NextResponse.json(
-        { error: "Necesitas al menos 3 participantes para hacer el sorteo." },
+        { error: "At least 3 participants are required / Se necesitan al menos 3 participantes." },
         { status: 400 }
       );
     }
 
-    // Verificar nombres duplicados
     const lowerSet = new Set(cleanNames.map((n) => n.toLowerCase()));
     if (lowerSet.size !== cleanNames.length) {
       return NextResponse.json(
-        { error: "No puede haber participantes con el mismo nombre exacto." },
+        { error: "Duplicate names are not allowed / No puede haber nombres duplicados." },
         { status: 400 }
       );
     }
 
-    // Crear IDs temporales para los participantes
     const participantsWithIds = cleanNames.map((name, idx) => ({
       id: `p_${idx + 1}_${generateToken(4)}`,
       name,
       exclusions: [] as string[],
     }));
 
-    // Aplicar exclusiones mutuas (ej. parejas)
     if (Array.isArray(body.exclusions)) {
       for (const [idxA, idxB] of body.exclusions) {
         if (
@@ -71,7 +70,6 @@ export async function POST(request: Request) {
       }
     }
 
-    // Ejecutar el sorteo en el servidor
     const assignments = runSecretSantaDraw(
       participantsWithIds.map((p) => ({ id: p.id, exclusions: p.exclusions }))
     );
@@ -80,7 +78,7 @@ export async function POST(request: Request) {
       return NextResponse.json(
         {
           error:
-            "No fue posible realizar el sorteo con esas exclusiones. Quita alguna restricción o añade más participantes.",
+            "Impossible draw with those exclusions / No fue posible hacer el sorteo con esas exclusiones.",
         },
         { status: 400 }
       );
@@ -107,6 +105,8 @@ export async function POST(request: Request) {
       const pRef = groupRef.collection("participants").doc(p.id);
       batch.set(pRef, {
         name: p.name,
+        email: "",
+        magicToken: generateToken(16),
         assignedToId: assignments.get(p.id),
         exclusions: p.exclusions,
         claimed: false,
@@ -126,7 +126,7 @@ export async function POST(request: Request) {
   } catch (error) {
     console.error("Error creating group:", error);
     return NextResponse.json(
-      { error: "Error interno al crear el grupo. Revisa la configuración de Firebase." },
+      { error: "Internal error creating group." },
       { status: 500 }
     );
   }

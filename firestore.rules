@@ -1,8 +1,7 @@
 rules_version = '2';
 
-// Como TODAS las lecturas y escrituras se hacen desde el servidor de Next.js
-// usando Firebase Admin SDK, bloqueamos el acceso directo desde el navegador.
-// Esto garantiza que nadie pueda inspeccionar la red ni hacer trampa en el sorteo.
+// Todas las lecturas y escrituras se hacen desde el servidor de Next.js
+// usando Firebase Admin SDK. Bloqueamos el acceso directo desde el navegador.
 service cloud.firestore {
   match /databases/{database}/documents {
     match /{document=**} {
