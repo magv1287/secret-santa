@@ -24,11 +24,21 @@ async function auditGroupDraw(
   groupRef: FirebaseFirestore.DocumentReference
 ): Promise<DrawAudit> {
   const snap = await groupRef.collection("participants").get();
-  const docs = snap.docs.map((d) => ({
-    id: d.id,
-    name: (d.data().name as string) || d.id,
-    assignedTo: (d.data().assignedTo as string) || "",
-  }));
+  const docs = snap.docs.map((d) => {
+    const data = d.data();
+    const assigned =
+      (data.assignedToId as string) ||
+      (data.assignedTo as string) ||
+      (data.recipientId as string) ||
+      (data.targetId as string) ||
+      (data.gifteeId as string) ||
+      "";
+    return {
+      id: d.id,
+      name: (data.name as string) || d.id,
+      assignedTo: assigned,
+    };
+  });
 
   const receiveCount = new Map<string, number>();
   for (const p of docs) {
