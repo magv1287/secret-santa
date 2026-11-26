@@ -1,8 +1,5 @@
 import { NextResponse } from "next/server";
 import { getDb } from "@/lib/firebase-admin";
-import { generateToken } from "@/lib/crypto";
-import { sendSecretSantaEmail } from "@/lib/brevo";
-import type { Lang } from "@/lib/i18n";
 
 export const dynamic = "force-dynamic";
 
@@ -40,7 +37,7 @@ export async function GET(
       return {
         id: doc.id,
         name: d.name as string,
-        email: (d.email as string) || "",
+        hasEmail: Boolean(d.email && String(d.email).trim().length > 0),
         claimed: Boolean(d.claimed),
         hasWishlist: Boolean(d.wishlist && String(d.wishlist).trim().length > 0),
       };
@@ -74,13 +71,9 @@ export async function POST(
     const body = (await request.json()) as {
       token: string;
       participantId: string;
-      action?: "reset_pin" | "send_email";
-      email?: string;
-      lang?: Lang;
     };
 
-    const { token, participantId, action = "reset_pin", email, lang } = body;
-    const emailLang: Lang = lang === "es" ? "es" : "en";
+    const { token, participantId } = body;
 
     if (!token || !participantId) {
       return NextResponse.json({ error: "Missing fields." }, { status: 400 });
@@ -109,37 +102,6 @@ export async function POST(
     }
 
     const pData = pSnap.data()!;
-
-    if (action === "send_email") {
-      const cleanEmail = (email || "").trim();
-      if (!cleanEmail || !cleanEmail.includes("@")) {
-        return NextResponse.json(
-          { error: "Invalid email address." },
-          { status: 400 }
-        );
-      }
-
-      const magicToken = (pData.magicToken as string) || generateToken(16);
-      const origin = new URL(request.url).origin;
-      const directUrl = `${origin}/g/${groupId}?t=${magicToken}`;
-
-      await sendSecretSantaEmail({
-        toEmail: cleanEmail,
-        toName: pData.name as string,
-        groupName: groupData.name as string,
-        directUrl,
-        lang: emailLang,
-      });
-
-      await pRef.update({
-        email: cleanEmail,
-        magicToken,
-        updatedAt: new Date().toISOString(),
-      });
-
-      return NextResponse.json({ ok: true });
-    }
-
     const currentVersion = (pData.pinVersion as number) || 1;
     await pRef.update({
       claimed: false,
