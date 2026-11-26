@@ -8,13 +8,26 @@ import {
   Shield,
   RefreshCw,
   Lock,
+  CheckCircle2,
+  AlertTriangle,
 } from "lucide-react";
+
+interface DrawAudit {
+  totalParticipants: number;
+  uniqueAssignedTargets: number;
+  isValid: boolean;
+  missingRecipients: string[];
+  duplicateRecipients: { name: string; count: number }[];
+  selfAssignments: string[];
+  missingGivers: string[];
+}
 
 interface GroupRow {
   id: string;
   name: string;
   adminToken: string;
   createdAt: string;
+  audit: DrawAudit;
 }
 
 export default function SuperAdminPage() {
@@ -117,7 +130,9 @@ export default function SuperAdminPage() {
             <h1 className="text-lg font-bold text-white">Super Admin</h1>
           </div>
           <p className="mb-4 text-xs text-slate-400">
-            Introduce tu clave maestra (<code className="text-slate-300">SUPER_ADMIN_KEY</code>) para gestionar todos los sorteos.
+            Introduce tu clave maestra (
+            <code className="text-slate-300">SUPER_ADMIN_KEY</code>) para
+            gestionar todos los sorteos.
           </p>
           <form onSubmit={handleLogin} className="space-y-3">
             <input
@@ -160,7 +175,9 @@ export default function SuperAdminPage() {
             disabled={loading}
             className="inline-flex items-center gap-1.5 rounded-xl border border-slate-700 bg-slate-800 px-3 py-2 text-xs font-medium text-slate-200 hover:bg-slate-700"
           >
-            <RefreshCw className={`h-3.5 w-3.5 ${loading ? "animate-spin" : ""}`} />
+            <RefreshCw
+              className={`h-3.5 w-3.5 ${loading ? "animate-spin" : ""}`}
+            />
             Refrescar
           </button>
 
@@ -183,55 +200,108 @@ export default function SuperAdminPage() {
         </div>
       ) : (
         <div className="space-y-3">
-          {groups.map((g) => (
-            <div
-              key={g.id}
-              className="flex flex-col justify-between gap-3 rounded-2xl border border-slate-800 bg-slate-900/80 p-4 sm:flex-row sm:items-center"
-            >
-              <div>
-                <p className="font-semibold text-white">{g.name}</p>
-                <p className="text-xs text-slate-400">
-                  ID: <code className="text-slate-300">{g.id}</code>
-                  {g.createdAt && (
-                    <> • {new Date(g.createdAt).toLocaleString()}</>
+          {groups.map((g) => {
+            const { audit } = g;
+            return (
+              <div
+                key={g.id}
+                className="rounded-2xl border border-slate-800 bg-slate-900/80 p-4"
+              >
+                <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-center">
+                  <div>
+                    <p className="font-semibold text-white">{g.name}</p>
+                    <p className="text-xs text-slate-400">
+                      ID: <code className="text-slate-300">{g.id}</code>
+                      {g.createdAt && (
+                        <> • {new Date(g.createdAt).toLocaleString()}</>
+                      )}
+                    </p>
+                  </div>
+
+                  <div className="flex flex-wrap items-center gap-2">
+                    <a
+                      href={`/g/${g.id}`}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="inline-flex items-center gap-1 rounded-xl border border-slate-700 bg-slate-800 px-3 py-1.5 text-xs font-medium text-slate-200 hover:bg-slate-700"
+                    >
+                      <ExternalLink className="h-3.5 w-3.5" /> Grupo
+                    </a>
+
+                    {g.adminToken && (
+                      <a
+                        href={`/g/${g.id}/admin?token=${encodeURIComponent(
+                          g.adminToken
+                        )}`}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="inline-flex items-center gap-1 rounded-xl border border-amber-500/30 bg-amber-500/10 px-3 py-1.5 text-xs font-medium text-amber-300 hover:bg-amber-500/20"
+                      >
+                        <Shield className="h-3.5 w-3.5" /> Admin
+                      </a>
+                    )}
+
+                    <button
+                      onClick={() => handleDeleteOne(g.id, g.name)}
+                      disabled={deletingId === g.id}
+                      className="inline-flex items-center gap-1 rounded-xl border border-rose-500/30 bg-rose-500/10 px-3 py-1.5 text-xs font-medium text-rose-400 hover:bg-rose-500/20 disabled:opacity-50"
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                      {deletingId === g.id ? "Borrando..." : "Borrar"}
+                    </button>
+                  </div>
+                </div>
+
+                {/* Auditoría ciega: solo muestra nombres si hay anomalía */}
+                <div className="mt-3 border-t border-slate-800/80 pt-3 text-xs">
+                  {audit.isValid ? (
+                    <p className="inline-flex items-center gap-1.5 text-emerald-400">
+                      <CheckCircle2 className="h-4 w-4 shrink-0" />
+                      Sorteo íntegro: {audit.totalParticipants} participantes,{" "}
+                      {audit.uniqueAssignedTargets} asignaciones únicas, sin
+                      repetidos ni faltantes.
+                    </p>
+                  ) : (
+                    <div className="space-y-1 rounded-xl border border-amber-500/30 bg-amber-500/10 p-3 text-amber-200">
+                      <p className="inline-flex items-center gap-1.5 font-semibold text-amber-300">
+                        <AlertTriangle className="h-4 w-4 shrink-0" />
+                        Anomalía detectada en el sorteo ({audit.totalParticipants}{" "}
+                        participantes):
+                      </p>
+                      {audit.missingRecipients.length > 0 && (
+                        <p>
+                          • Sin pareja asignada para recibir:{" "}
+                          <strong>{audit.missingRecipients.join(", ")}</strong>
+                        </p>
+                      )}
+                      {audit.duplicateRecipients.length > 0 && (
+                        <p>
+                          • Asignados más de una vez:{" "}
+                          <strong>
+                            {audit.duplicateRecipients
+                              .map((d) => `${d.name} (${d.count}x)`)
+                              .join(", ")}
+                          </strong>
+                        </p>
+                      )}
+                      {audit.missingGivers.length > 0 && (
+                        <p>
+                          • Sin regalo asignado para dar:{" "}
+                          <strong>{audit.missingGivers.join(", ")}</strong>
+                        </p>
+                      )}
+                      {audit.selfAssignments.length > 0 && (
+                        <p>
+                          • Autoasignación (se tocó a sí mismo):{" "}
+                          <strong>{audit.selfAssignments.join(", ")}</strong>
+                        </p>
+                      )}
+                    </div>
                   )}
-                </p>
+                </div>
               </div>
-
-              <div className="flex flex-wrap items-center gap-2">
-                <a
-                  href={`/g/${g.id}`}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="inline-flex items-center gap-1 rounded-xl border border-slate-700 bg-slate-800 px-3 py-1.5 text-xs font-medium text-slate-200 hover:bg-slate-700"
-                >
-                  <ExternalLink className="h-3.5 w-3.5" /> Grupo
-                </a>
-
-                {g.adminToken && (
-                  <a
-                    href={`/g/${g.id}/admin?token=${encodeURIComponent(
-                      g.adminToken
-                    )}`}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="inline-flex items-center gap-1 rounded-xl border border-amber-500/30 bg-amber-500/10 px-3 py-1.5 text-xs font-medium text-amber-300 hover:bg-amber-500/20"
-                  >
-                    <Shield className="h-3.5 w-3.5" /> Admin
-                  </a>
-                )}
-
-                <button
-                  onClick={() => handleDeleteOne(g.id, g.name)}
-                  disabled={deletingId === g.id}
-                  className="inline-flex items-center gap-1 rounded-xl border border-rose-500/30 bg-rose-500/10 px-3 py-1.5 text-xs font-medium text-rose-400 hover:bg-rose-500/20 disabled:opacity-50"
-                >
-                  <Trash2 className="h-3.5 w-3.5" />
-                  {deletingId === g.id ? "Borrando..." : "Borrar"}
-                </button>
-              </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       )}
     </main>
