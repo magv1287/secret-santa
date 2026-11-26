@@ -30,11 +30,6 @@ async function auditGroupDraw(
     assignedTo: (d.data().assignedTo as string) || "",
   }));
 
-  const nameById = new Map<string, string>();
-  for (const p of docs) {
-    nameById.set(p.id, p.name);
-  }
-
   const receiveCount = new Map<string, number>();
   for (const p of docs) {
     receiveCount.set(p.id, 0);
@@ -58,14 +53,14 @@ async function auditGroupDraw(
   const duplicateRecipients: { name: string; count: number }[] = [];
   let uniqueAssignedTargets = 0;
 
-  for (const [id, count] of receiveCount.entries()) {
-    const label = nameById.get(id) || id;
+  for (const p of docs) {
+    const count = receiveCount.get(p.id) || 0;
     if (count === 0) {
-      missingRecipients.push(label);
+      missingRecipients.push(p.name);
     } else {
       uniqueAssignedTargets += 1;
       if (count > 1) {
-        duplicateRecipients.push({ name: label, count });
+        duplicateRecipients.push({ name: p.name, count });
       }
     }
   }
