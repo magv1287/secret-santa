@@ -1,0 +1,43 @@
+{
+  "_comment": "Firestore es NoSQL: las colecciones se crean solas al crear el primer grupo en la app. Este archivo muestra la estructura exacta que se guarda.",
+  "collections": {
+    "groups": {
+      "navidad-2026-ab12cd": {
+        "name": "Navidad Familia 2026",
+        "budget": "$50",
+        "eventDate": "24 de Diciembre 2026",
+        "notes": "Traer el regalo envuelto con el nombre.",
+        "adminToken": "token-secreto-largo-solo-para-el-organizador",
+        "createdAt": "2026-11-25T20:00:00.000Z",
+        "subcollections": {
+          "participants": {
+            "p_1": {
+              "name": "Miguel",
+              "assignedToId": "p_3",
+              "exclusions": [
+                "p_2"
+              ],
+              "claimed": true,
+              "pinHash": "salt:hash_scrypt_del_pin",
+              "pinVersion": 1,
+              "wishlist": "Cualquier cosa de MotoGP o café/matcha",
+              "updatedAt": "2026-11-25T20:05:00.000Z"
+            },
+            "p_2": {
+              "name": "Grecia",
+              "assignedToId": "p_1",
+              "exclusions": [
+                "p_1"
+              ],
+              "claimed": false,
+              "pinHash": null,
+              "pinVersion": 1,
+              "wishlist": "",
+              "updatedAt": "2026-11-25T20:00:00.000Z"
+            }
+          }
+        }
+      }
+    }
+  }
+}
