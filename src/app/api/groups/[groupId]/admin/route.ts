@@ -140,7 +140,6 @@ export async function POST(
       return NextResponse.json({ ok: true });
     }
 
-    // Reset PIN & invalidate old cookies
     const currentVersion = (pData.pinVersion as number) || 1;
     await pRef.update({
       claimed: false,
@@ -154,6 +153,50 @@ export async function POST(
     console.error("Error in admin POST:", error);
     return NextResponse.json(
       { error: "Error processing action." },
+      { status: 500 }
+    );
+  }
+}
+
+export async function DELETE(
+  request: Request,
+  { params }: { params: { groupId: string } }
+) {
+  try {
+    const { groupId } = params;
+    const { searchParams } = new URL(request.url);
+    const token = searchParams.get("token");
+
+    if (!token) {
+      return NextResponse.json({ error: "Token required." }, { status: 401 });
+    }
+
+    const db = getDb();
+    const groupRef = db.collection("groups").doc(groupId);
+    const groupSnap = await groupRef.get();
+
+    if (!groupSnap.exists) {
+      return NextResponse.json({ error: "Group not found." }, { status: 404 });
+    }
+
+    const groupData = groupSnap.data()!;
+    if (groupData.adminToken !== token) {
+      return NextResponse.json({ error: "Invalid token." }, { status: 403 });
+    }
+
+    const participantsSnap = await groupRef.collection("participants").get();
+    const batch = db.batch();
+    participantsSnap.docs.forEach((doc) => {
+      batch.delete(doc.ref);
+    });
+    batch.delete(groupRef);
+    await batch.commit();
+
+    return NextResponse.json({ ok: true });
+  } catch (error) {
+    console.error("Error in admin DELETE:", error);
+    return NextResponse.json(
+      { error: "Error deleting group." },
       { status: 500 }
     );
   }
