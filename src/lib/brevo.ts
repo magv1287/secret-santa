@@ -1,3 +1,4 @@
+import nodemailer from "nodemailer";
 import type { Lang } from "@/lib/i18n";
 
 export async function sendSecretSantaEmail({
@@ -15,14 +16,22 @@ export async function sendSecretSantaEmail({
   pin?: string;
   lang?: Lang;
 }) {
-  const apiKey = process.env.BREVO_API_KEY;
-  const senderEmail = process.env.BREVO_SENDER_EMAIL;
+  const user = process.env.GMAIL_USER;
+  const pass = process.env.GMAIL_APP_PASSWORD;
 
-  if (!apiKey || !senderEmail) {
+  if (!user || !pass) {
     throw new Error(
-      "Faltan BREVO_API_KEY o BREVO_SENDER_EMAIL en las variables de entorno."
+      "Faltan GMAIL_USER o GMAIL_APP_PASSWORD en las variables de entorno."
     );
   }
+
+  const transporter = nodemailer.createTransport({
+    service: "gmail",
+    auth: {
+      user,
+      pass,
+    },
+  });
 
   const isEs = lang === "es";
 
@@ -42,7 +51,7 @@ export async function sendSecretSantaEmail({
          </div>`
     : "";
 
-  const htmlContent = isEs
+  const html = isEs
     ? `
       <div style="font-family: sans-serif; max-width: 500px; margin: 0 auto; padding: 20px; color: #0f172a;">
         <h2>¡Hola, ${toName}! 🎄</h2>
@@ -80,23 +89,10 @@ export async function sendSecretSantaEmail({
       </div>
     `;
 
-  const res = await fetch("https://api.brevo.com/v3/smtp/email", {
-    method: "POST",
-    headers: {
-      accept: "application/json",
-      "api-key": apiKey,
-      "content-type": "application/json",
-    },
-    body: JSON.stringify({
-      sender: { name: "Secret Santa", email: senderEmail },
-      to: [{ email: toEmail, name: toName }],
-      subject,
-      htmlContent,
-    }),
+  await transporter.sendMail({
+    from: `"Secret Santa 🎄" <${user}>`,
+    to: `"${toName}" <${toEmail}>`,
+    subject,
+    html,
   });
-
-  if (!res.ok) {
-    const errText = await res.text();
-    throw new Error(`Brevo error: ${errText}`);
-  }
 }
