@@ -79,9 +79,7 @@ export const translations = {
       "Úsalo para enviar invitaciones por correo o resetear PINs en 1 clic. Nunca verás las parejas del sorteo.",
     copyAdminLink: "Copiar enlace de Admin",
     openAdminPanel: "Abrir Panel Admin →",
-    whatsappMessage: (groupName: string, url: string) =>
-      `🎄 ¡Ya está listo el sorteo de ${groupName}!\n\nEntra aquí, toca tu nombre y crea un PIN de 4 dígitos para descubrir a quién te tocó y dejar tu lista de deseos:\n${url}\n\n📌 *Nota:* Puedes poner tu correo (es opcional) para recibir tu PIN y un enlace directo por si cambias de dispositivo. Si no lo ves en tu bandeja de entrada, revisa la carpeta de *Spam / Correo no deseado*.`,
-
+    whatsappMessage: buildWhatsAppMessage,
     // Group Page
     loadingDraw: "Cargando sorteo...",
     groupNotFound: "Grupo no encontrado.",
@@ -201,8 +199,8 @@ export const translations = {
       "Use it to send email invites or reset PINs in 1 click. You will never see the draw assignments.",
     copyAdminLink: "Copy Admin link",
     openAdminPanel: "Open Admin Panel →",
-    whatsappMessage: (groupName: string, url: string) =>
-      `🎄 The Secret Santa draw for ${groupName} is ready!\n\nOpen this link, tap your name, and create a 4-digit PIN to see who you got and add your wishlist:\n${url}\n\n📌 *Note:* You can optionally enter your email to receive a backup of your PIN and a direct login link in case you switch devices. If you don't see it in your inbox, please check your *Spam / Junk* folder.`,
+    
+    whatsappMessage: buildWhatsAppMessage,    
 
     // Group Page
     loadingDraw: "Loading draw...",
