@@ -10,6 +10,84 @@ function isAuthorized(request: Request): boolean {
   return provided === expected;
 }
 
+interface DrawAudit {
+  totalParticipants: number;
+  uniqueAssignedTargets: number;
+  isValid: boolean;
+  missingRecipients: string[];
+  duplicateRecipients: { name: string; count: number }[];
+  selfAssignments: string[];
+  missingGivers: string[];
+}
+
+async function auditGroupDraw(
+  groupRef: FirebaseFirestore.DocumentReference
+): Promise<DrawAudit> {
+  const snap = await groupRef.collection("participants").get();
+  const docs = snap.docs.map((d) => ({
+    id: d.id,
+    name: (d.data().name as string) || d.id,
+    assignedTo: (d.data().assignedTo as string) || "",
+  }));
+
+  const nameById = new Map<string, string>();
+  for (const p of docs) {
+    nameById.set(p.id, p.name);
+  }
+
+  const receiveCount = new Map<string, number>();
+  for (const p of docs) {
+    receiveCount.set(p.id, 0);
+  }
+
+  const selfAssignments: string[] = [];
+  const missingGivers: string[] = [];
+
+  for (const p of docs) {
+    if (!p.assignedTo) {
+      missingGivers.push(p.name);
+      continue;
+    }
+    if (p.assignedTo === p.id) {
+      selfAssignments.push(p.name);
+    }
+    receiveCount.set(p.assignedTo, (receiveCount.get(p.assignedTo) || 0) + 1);
+  }
+
+  const missingRecipients: string[] = [];
+  const duplicateRecipients: { name: string; count: number }[] = [];
+  let uniqueAssignedTargets = 0;
+
+  for (const [id, count] of receiveCount.entries()) {
+    const label = nameById.get(id) || id;
+    if (count === 0) {
+      missingRecipients.push(label);
+    } else {
+      uniqueAssignedTargets += 1;
+      if (count > 1) {
+        duplicateRecipients.push({ name: label, count });
+      }
+    }
+  }
+
+  const isValid =
+    docs.length > 0 &&
+    missingGivers.length === 0 &&
+    selfAssignments.length === 0 &&
+    missingRecipients.length === 0 &&
+    duplicateRecipients.length === 0;
+
+  return {
+    totalParticipants: docs.length,
+    uniqueAssignedTargets,
+    isValid,
+    missingRecipients,
+    duplicateRecipients,
+    selfAssignments,
+    missingGivers,
+  };
+}
+
 export async function GET(request: Request) {
   if (!isAuthorized(request)) {
     return NextResponse.json(
@@ -25,15 +103,19 @@ export async function GET(request: Request) {
       .orderBy("createdAt", "desc")
       .get();
 
-    const groups = snap.docs.map((doc) => {
-      const d = doc.data();
-      return {
-        id: doc.id,
-        name: (d.name as string) || doc.id,
-        adminToken: (d.adminToken as string) || "",
-        createdAt: (d.createdAt as string) || "",
-      };
-    });
+    const groups = await Promise.all(
+      snap.docs.map(async (doc) => {
+        const d = doc.data();
+        const audit = await auditGroupDraw(doc.ref);
+        return {
+          id: doc.id,
+          name: (d.name as string) || doc.id,
+          adminToken: (d.adminToken as string) || "",
+          createdAt: (d.createdAt as string) || "",
+          audit,
+        };
+      })
+    );
 
     return NextResponse.json({ groups });
   } catch (error) {
