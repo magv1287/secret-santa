@@ -10,6 +10,7 @@ import {
   Lock,
   UserCheck,
   Mail,
+  MailX,
   Trash2,
   MessageSquare,
 } from "lucide-react";
@@ -37,7 +38,8 @@ function AdminContent() {
   const [participants, setParticipants] = useState<AdminParticipant[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
-  const [resettingId, setResettingId] = useState<string | null>(null);
+  const [resettingPinId, setResettingPinId] = useState<string | null>(null);
+  const [resettingEmailId, setResettingEmailId] = useState<string | null>(null);
   const [copiedKey, setCopiedKey] = useState<string | null>(null);
   const [deleting, setDeleting] = useState(false);
 
@@ -75,18 +77,41 @@ function AdminContent() {
       return;
     }
 
-    setResettingId(participantId);
+    setResettingPinId(participantId);
     try {
       const res = await fetch(`/api/groups/${groupId}/admin`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ token, participantId }),
+        body: JSON.stringify({ token, participantId, action: "reset_pin" }),
       });
       if (res.ok) {
         await loadAdmin();
       }
     } finally {
-      setResettingId(null);
+      setResettingPinId(null);
+    }
+  }
+
+  async function handleResetEmail(participantId: string, name: string) {
+    const msg =
+      lang === "es"
+        ? `¿Seguro que quieres borrar el correo de ${name} e invalidar su enlace de acceso por correo?`
+        : `Are you sure you want to remove ${name}'s email and invalidate their previous email login link?`;
+
+    if (!confirm(msg)) return;
+
+    setResettingEmailId(participantId);
+    try {
+      const res = await fetch(`/api/groups/${groupId}/admin`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ token, participantId, action: "reset_email" }),
+      });
+      if (res.ok) {
+        await loadAdmin();
+      }
+    } finally {
+      setResettingEmailId(null);
     }
   }
 
@@ -195,15 +220,15 @@ function AdminContent() {
 
       <p className="mb-5 text-xs text-slate-400">
         {lang === "es"
-          ? "Aquí puedes ver quién ya entró, si registró correo y resetear PINs. Las asignaciones y los correos nunca se muestran."
-          : "Track who has joined, whether they added an email, and reset PINs. Draw matches and email addresses are never shown."}
+          ? "Aquí puedes ver quién ya entró, si registró correo y resetear PINs o correos. Las asignaciones y los correos nunca se muestran."
+          : "Track who has joined, whether they added an email, and reset PINs or emails. Draw matches and email addresses are never shown."}
       </p>
 
       <div className="space-y-3">
         {participants.map((p) => (
           <div
             key={p.id}
-            className="flex items-center justify-between gap-3 rounded-2xl border border-slate-800 bg-slate-900/80 p-4"
+            className="flex flex-col justify-between gap-3 rounded-2xl border border-slate-800 bg-slate-900/80 p-4 sm:flex-row sm:items-center"
           >
             <div>
               <p className="font-semibold text-white">{p.name}</p>
@@ -239,16 +264,35 @@ function AdminContent() {
               </div>
             </div>
 
-            {p.claimed && (
-              <button
-                onClick={() => handleResetPin(p.id, p.name)}
-                disabled={resettingId === p.id}
-                className="inline-flex shrink-0 items-center gap-1.5 rounded-xl border border-amber-500/30 bg-amber-500/10 px-3 py-1.5 text-xs font-medium text-amber-300 hover:bg-amber-500/20 disabled:opacity-50"
-              >
-                <RotateCcw className="h-3.5 w-3.5" />
-                {resettingId === p.id ? t.resettingBtn : t.resetPinBtn}
-              </button>
-            )}
+            <div className="flex flex-wrap items-center gap-2">
+              {p.hasEmail && (
+                <button
+                  onClick={() => handleResetEmail(p.id, p.name)}
+                  disabled={resettingEmailId === p.id}
+                  className="inline-flex shrink-0 items-center gap-1.5 rounded-xl border border-sky-500/30 bg-sky-500/10 px-3 py-1.5 text-xs font-medium text-sky-300 hover:bg-sky-500/20 disabled:opacity-50"
+                >
+                  <MailX className="h-3.5 w-3.5" />
+                  {resettingEmailId === p.id
+                    ? lang === "es"
+                      ? "Borrando..."
+                      : "Clearing..."
+                    : lang === "es"
+                    ? "Resetear correo"
+                    : "Reset email"}
+                </button>
+              )}
+
+              {p.claimed && (
+                <button
+                  onClick={() => handleResetPin(p.id, p.name)}
+                  disabled={resettingPinId === p.id}
+                  className="inline-flex shrink-0 items-center gap-1.5 rounded-xl border border-amber-500/30 bg-amber-500/10 px-3 py-1.5 text-xs font-medium text-amber-300 hover:bg-amber-500/20 disabled:opacity-50"
+                >
+                  <RotateCcw className="h-3.5 w-3.5" />
+                  {resettingPinId === p.id ? t.resettingBtn : t.resetPinBtn}
+                </button>
+              )}
+            </div>
           </div>
         ))}
       </div>
