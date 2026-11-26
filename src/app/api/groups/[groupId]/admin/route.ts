@@ -71,9 +71,10 @@ export async function POST(
     const body = (await request.json()) as {
       token: string;
       participantId: string;
+      action?: "reset_pin" | "reset_email";
     };
 
-    const { token, participantId } = body;
+    const { token, participantId, action = "reset_pin" } = body;
 
     if (!token || !participantId) {
       return NextResponse.json({ error: "Missing fields." }, { status: 400 });
@@ -99,6 +100,15 @@ export async function POST(
         { error: "Participant not found." },
         { status: 404 }
       );
+    }
+
+    if (action === "reset_email") {
+      await pRef.update({
+        email: null,
+        magicToken: null,
+        updatedAt: new Date().toISOString(),
+      });
+      return NextResponse.json({ ok: true });
     }
 
     const pData = pSnap.data()!;
